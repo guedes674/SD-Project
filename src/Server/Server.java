@@ -6,6 +6,8 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.locks.*;
 
+
+// classe server que implementa um servidor de armazenamento de dados
 public class Server {
     private final Map<String, byte[]> store = new HashMap<>();
     private final Map<String, String> users = new HashMap<>(); // username -> password
