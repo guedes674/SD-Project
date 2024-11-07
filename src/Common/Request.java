@@ -7,5 +7,7 @@ public class Request {
     public static final int GET = 4;
     public static final int MULTI_PUT = 5;
     public static final int MULTI_GET = 6;
-    public static final int LOGOUT = 7;
+    public static final int GET_WHEN = 7;
+    public static final int LOGOUT = 8;
+
 }

@@ -64,7 +64,8 @@ public class CLI {
             System.out.println("2. Get");
             System.out.println("3. MultiPut");
             System.out.println("4. MultiGet");
-            System.out.println("5. Logout");
+            System.out.println("5. GetWhen");
+            System.out.println("6. Logout");
 
             int choice = Integer.parseInt(scanner.nextLine());
 
@@ -107,6 +108,15 @@ public class CLI {
                     System.out.println(entry.getKey() + ": " + new String(entry.getValue()));
                 }
             } else if (choice == 5) {
+                System.out.println("Enter key:");
+                String key = scanner.nextLine();
+                System.out.println("Enter condition key:");
+                String keyCond = scanner.nextLine();
+                System.out.println("Enter condition value:");
+                String valueCond = scanner.nextLine();
+                byte[] value = client.getWhen(key, keyCond, valueCond.getBytes());
+                System.out.println("Value: " + (value != null ? new String(value) : "null"));
+            } else if (choice == 6) {
                 client.logout();
                 break;
             }

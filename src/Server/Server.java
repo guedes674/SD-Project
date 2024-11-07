@@ -2,6 +2,7 @@ package Server;
 
 import java.net.*;
 import java.io.*;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -15,6 +16,7 @@ public class Server {
     private final Lock sessionLock = new ReentrantLock();
     private final Condition sessionAvailable = sessionLock.newCondition();
     private final Lock storeLock = new ReentrantLock();
+    private final Condition storeCondition = storeLock.newCondition(); // Shared condition
 
     public Server(int maxSessions) {
         this.maxSessions = maxSessions;
@@ -77,6 +79,7 @@ public class Server {
         storeLock.lock();
         try {
             store.put(key, value);
+            storeCondition.signalAll(); // Signal the shared condition
         } finally {
             storeLock.unlock();
         }
@@ -95,6 +98,7 @@ public class Server {
         storeLock.lock();
         try {
             store.putAll(pairs);
+            storeCondition.signalAll(); // Signal the shared condition
         } finally {
             storeLock.unlock();
         }
@@ -110,6 +114,22 @@ public class Server {
                 }
             }
             return result;
+        } finally {
+            storeLock.unlock();
+        }
+    }
+
+    public byte[] getWhen(String key, String keyCond, byte[] valueCond) throws InterruptedException {
+        storeLock.lock();
+        try {
+            while (!Arrays.equals(store.get(keyCond), valueCond)) {
+                System.out.println("Waiting for condition to be met");
+                System.out.println(keyCond);
+                System.out.println(valueCond);
+                System.out.println("Key: " + store.get(keyCond) + " Value: " + valueCond);
+                storeCondition.await(); // Await on the shared condition
+            }
+            return store.get(key);
         } finally {
             storeLock.unlock();
         }

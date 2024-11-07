@@ -64,6 +64,13 @@ public class ClientHandler extends Thread {
                             handleMultiGet();
                         }
                         break;
+                    case Request.GET_WHEN:
+                        if (username == null) {
+                            sendNotAuthenticatedResponse();
+                        } else {
+                            handleGetWhen();
+                        }
+                        break;
                     case Request.LOGOUT:
                         System.out.println("Logging out");
                         handleLogout();
@@ -83,6 +90,23 @@ public class ClientHandler extends Thread {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void handleGetWhen() throws IOException, InterruptedException {
+        String key = in.readUTF();
+        String keyCond = in.readUTF();
+        int length = in.readInt();
+        byte[] valueCond = new byte[length];
+        in.readFully(valueCond);
+        byte[] value = server.getWhen(key, keyCond, valueCond);
+        if (value != null) {
+            out.writeBoolean(true);
+            out.writeInt(value.length);
+            out.write(value);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.flush();
     }
 
     private void handleAuth() throws IOException, InterruptedException {

@@ -107,6 +107,24 @@ public class Client implements AutoCloseable {
         }
     }
 
+    public byte[] getWhen(String key, String keyCond, byte[] valueCond) throws IOException {
+        out.writeInt(Request.GET_WHEN);
+        out.writeUTF(key);
+        out.writeUTF(keyCond);
+        out.writeInt(valueCond.length);
+        out.write(valueCond);
+        out.flush();
+        boolean success = in.readBoolean();
+        if (success) {
+            int length = in.readInt();
+            byte[] value = new byte[length];
+            in.readFully(value);
+            return value;
+        } else {
+            return null;
+        }
+    }
+
     public void logout() throws IOException {
         out.writeInt(Request.LOGOUT);
         out.flush();
