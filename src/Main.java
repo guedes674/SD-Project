@@ -5,9 +5,10 @@ import Server.Server;
 public class Main {
     public static void main(String[] args) {
         if (args.length != 2) {
-            System.out.println("Usage: java Main <port> <maxSessions>");
-            System.out.println("Example: java Main 8080 10");
-            return;
+            args = new String[] { "8080", "2" };
+            // System.out.println("Usage: java Main <port> <maxSessions>");
+            // System.out.println("Example: java Main 8080 10");
+            // return;
         }
 
         try {
@@ -62,5 +63,3 @@ public class Main {
         System.out.println("  Ctrl+C to shutdown the server");
     }
 }
-
-

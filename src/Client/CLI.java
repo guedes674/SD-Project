@@ -4,16 +4,18 @@ import java.util.*;
 
 public class CLI {
     private static final Scanner scanner = new Scanner(System.in);
+    private static final String host = "localhost";
+    private static final int port = 8080;
 
     public static void main(String[] args) {
-        System.out.println("Enter server host:");
-        String host = scanner.nextLine();
+        // System.out.println("Enter server host:");
+        // String host = scanner.nextLine();
 
-        System.out.println("Enter server port:");
-        int port = Integer.parseInt(scanner.nextLine());
+        // System.out.println("Enter server port:");
+        // int port = Integer.parseInt(scanner.nextLine());
 
-        try (Client client = new Client(host, port)) {
-            while (true) {
+        while (true) {
+            try (Client client = new Client(host, port)) {
                 System.out.println("\n1. Register");
                 System.out.println("2. Login");
                 System.out.println("3. Exit");
@@ -29,9 +31,9 @@ public class CLI {
                 } else {
                     break;
                 }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 
@@ -105,6 +107,7 @@ public class CLI {
                     System.out.println(entry.getKey() + ": " + new String(entry.getValue()));
                 }
             } else if (choice == 5) {
+                client.logout();
                 break;
             }
         }

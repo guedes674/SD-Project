@@ -1,6 +1,5 @@
 package Common;
 
-// Common/Response.java
 import java.io.Serializable;
 import java.util.*;
 
@@ -13,4 +12,3 @@ public class Response implements Serializable {
         this.message = message;
     }
 }
-

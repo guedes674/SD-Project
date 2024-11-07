@@ -1,31 +1,27 @@
 package Server;
 
-// Server/Server.java
 import java.net.*;
 import java.io.*;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.*;
 
-
-// classe server que implementa um servidor de armazenamento de dados
 public class Server {
-    private final Map<String, byte[]> store = new HashMap<>();
-    private final Map<String, String> users = new HashMap<>(); // username -> password
-    private final Set<String> activeSessions = new HashSet<>();
     private final int maxSessions;
-
-    private final ReentrantLock storeLock = new ReentrantLock();
-    private final ReentrantLock sessionLock = new ReentrantLock();
+    private final Map<String, String> users = new HashMap<>();
+    private final Map<String, byte[]> activeSessions = new HashMap<>();
+    private final Map<String, byte[]> store = new HashMap<>();
+    private final Lock sessionLock = new ReentrantLock();
     private final Condition sessionAvailable = sessionLock.newCondition();
+    private final Lock storeLock = new ReentrantLock();
 
     public Server(int maxSessions) {
         this.maxSessions = maxSessions;
     }
 
-    public void start(int port) {
+    public void start(int port) throws InterruptedException {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Server started on port " + port);
-
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 new ClientHandler(clientSocket, this).start();
@@ -35,21 +31,18 @@ public class Server {
         }
     }
 
-    public boolean authenticate(String username, String password) {
+    public boolean authenticate(String username, String password) throws InterruptedException {
         sessionLock.lock();
         try {
             if (!users.containsKey(username) || !users.get(username).equals(password)) {
                 return false;
             }
-
+            System.out.println("User " + username + " logged in" + " (" + activeSessions + " active sessions)");
             while (activeSessions.size() >= maxSessions) {
                 sessionAvailable.await();
             }
-
-            activeSessions.add(username);
+            activeSessions.put(username, new byte[0]);
             return true;
-        } catch (InterruptedException e) {
-            return false;
         } finally {
             sessionLock.unlock();
         }
@@ -58,8 +51,10 @@ public class Server {
     public void logout(String username) {
         sessionLock.lock();
         try {
+            System.out.println("User " + username + " logging out");
             activeSessions.remove(username);
             sessionAvailable.signalAll();
+            System.out.println("User " + username + " logged out" + " (" + activeSessions + " active sessions)");
         } finally {
             sessionLock.unlock();
         }
@@ -110,9 +105,8 @@ public class Server {
         try {
             Map<String, byte[]> result = new HashMap<>();
             for (String key : keys) {
-                byte[] value = store.get(key);
-                if (value != null) {
-                    result.put(key, value);
+                if (store.containsKey(key)) {
+                    result.put(key, store.get(key));
                 }
             }
             return result;

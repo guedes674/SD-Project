@@ -1,57 +1,81 @@
 package Server;
 
-// Server/ClientHandler.java
-
 import Common.*;
 
 import java.net.*;
 import java.io.*;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.HashSet;
 
 public class ClientHandler extends Thread {
     private final Socket clientSocket;
     private final Server server;
-    private final ObjectInputStream in;
-    private final ObjectOutputStream out;
+    private final DataInputStream in;
+    private final DataOutputStream out;
     private String username;
 
     public ClientHandler(Socket socket, Server server) throws IOException {
         this.clientSocket = socket;
         this.server = server;
-        this.out = new ObjectOutputStream(socket.getOutputStream());
-        this.in = new ObjectInputStream(socket.getInputStream());
+        this.out = new DataOutputStream(socket.getOutputStream());
+        this.in = new DataInputStream(socket.getInputStream());
     }
 
     @Override
     public void run() {
         try {
             while (true) {
-                Request request = (Request) in.readObject();
+                int requestType = in.readInt();
 
-                if (request instanceof AuthRequest) {
-                    handleAuth((AuthRequest) request);
-                } else if (request instanceof RegisterRequest) {
-                    handleRegister((RegisterRequest) request);
-                } else if (username == null) {
-                    out.writeObject(new Response(false, "Not authenticated"));
-                    continue;
-                }
-
-                if (request instanceof PutRequest) {
-                    handlePut((PutRequest) request);
-                } else if (request instanceof GetRequest) {
-                    handleGet((GetRequest) request);
-                } else if (request instanceof MultiPutRequest) {
-                    handleMultiPut((MultiPutRequest) request);
-                } else if (request instanceof MultiGetRequest) {
-                    handleMultiGet((MultiGetRequest) request);
-                } else if (request instanceof LogoutRequest) {
-                    handleLogout();
-                    break;
+                switch (requestType) {
+                    case Request.AUTH:
+                        handleAuth();
+                        break;
+                    case Request.REGISTER:
+                        handleRegister();
+                        break;
+                    case Request.PUT:
+                        if (username == null) {
+                            sendNotAuthenticatedResponse();
+                        } else {
+                            handlePut();
+                        }
+                        break;
+                    case Request.GET:
+                        if (username == null) {
+                            sendNotAuthenticatedResponse();
+                        } else {
+                            handleGet();
+                        }
+                        break;
+                    case Request.MULTI_PUT:
+                        if (username == null) {
+                            sendNotAuthenticatedResponse();
+                        } else {
+                            handleMultiPut();
+                        }
+                        break;
+                    case Request.MULTI_GET:
+                        if (username == null) {
+                            sendNotAuthenticatedResponse();
+                        } else {
+                            handleMultiGet();
+                        }
+                        break;
+                    case Request.LOGOUT:
+                        System.out.println("Logging out");
+                        handleLogout();
+                        return;
+                    default:
+                        throw new IllegalArgumentException("Unknown request type: " + requestType);
                 }
             }
-        } catch (IOException | ClassNotFoundException e) {
+        } catch (IOException e) {
             handleLogout();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         } finally {
             try {
                 clientSocket.close();
@@ -61,42 +85,98 @@ public class ClientHandler extends Thread {
         }
     }
 
-    private void handleAuth(AuthRequest request) throws IOException {
-        boolean success = server.authenticate(request.username, request.password);
+    private void handleAuth() throws IOException, InterruptedException {
+        String username = in.readUTF();
+        String password = in.readUTF();
+        boolean success = server.authenticate(username, password);
         if (success) {
-            username = request.username;
+            this.username = username;
         }
-        out.writeObject(new Response(success, success ? "Authentication successful" : "Authentication failed"));
+        out.writeBoolean(success);
+        out.flush();
     }
 
-    private void handleRegister(RegisterRequest request) throws IOException {
-        boolean success = server.register(request.username, request.password);
-        out.writeObject(new Response(success, success ? "Registration successful" : "Username already exists"));
+    private void handleRegister() throws IOException {
+        System.out.println("Registering");
+
+        String username = in.readUTF();
+        String password = in.readUTF();
+
+        System.out.println(username);
+        boolean success = server.register(username, password);
+
+        System.out.println(success ? "Registration successful" : "Registration failed");
+        out.writeBoolean(success);
+        out.flush();
     }
 
-    private void handlePut(PutRequest request) throws IOException {
-        server.put(request.key, request.value);
-        out.writeObject(new Response(true, "Put successful"));
+    private void handlePut() throws IOException {
+        String key = in.readUTF();
+        int length = in.readInt();
+        byte[] value = new byte[length];
+        in.readFully(value);
+        server.put(key, value);
+        out.writeBoolean(true);
+        out.flush();
     }
 
-    private void handleGet(GetRequest request) throws IOException {
-        byte[] value = server.get(request.key);
-        out.writeObject(new GetResponse(value));
+    private void handleGet() throws IOException {
+        String key = in.readUTF();
+        byte[] value = server.get(key);
+        if (value != null) {
+            out.writeBoolean(true);
+            out.writeInt(value.length);
+            out.write(value);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.flush();
     }
 
-    private void handleMultiPut(MultiPutRequest request) throws IOException {
-        server.multiPut(request.pairs);
-        out.writeObject(new Response(true, "MultiPut successful"));
+    private void handleMultiPut() throws IOException {
+        int size = in.readInt();
+        Map<String, byte[]> pairs = new HashMap<>();
+        for (int i = 0; i < size; i++) {
+            String key = in.readUTF();
+            int length = in.readInt();
+            byte[] value = new byte[length];
+            in.readFully(value);
+            pairs.put(key, value);
+        }
+        server.multiPut(pairs);
+        out.writeBoolean(true);
+        out.flush();
     }
 
-    private void handleMultiGet(MultiGetRequest request) throws IOException {
-        Map<String, byte[]> values = server.multiGet(request.keys);
-        out.writeObject(new MultiGetResponse(values));
+    private void handleMultiGet() throws IOException {
+        int size = in.readInt();
+        Set<String> keys = new HashSet<>();
+        for (int i = 0; i < size; i++) {
+            keys.add(in.readUTF());
+        }
+        Map<String, byte[]> values = server.multiGet(keys);
+        if (values != null) {
+            out.writeBoolean(true);
+            out.writeInt(values.size());
+            for (Map.Entry<String, byte[]> entry : values.entrySet()) {
+                out.writeUTF(entry.getKey());
+                out.writeInt(entry.getValue().length);
+                out.write(entry.getValue());
+            }
+        } else {
+            out.writeBoolean(false);
+        }
+        out.flush();
     }
 
     private void handleLogout() {
         if (username != null) {
             server.logout(username);
         }
+    }
+
+    private void sendNotAuthenticatedResponse() throws IOException {
+        out.writeBoolean(false);
+        out.flush();
     }
 }
