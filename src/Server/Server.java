@@ -13,9 +13,9 @@ public class Server {
     private final Map<String, String> users = new HashMap<>();
     private final Map<String, byte[]> activeSessions = new HashMap<>();
     private final Map<String, byte[]> store = new HashMap<>();
-    private final Lock sessionLock = new ReentrantLock();
+    private final ReentrantLock sessionLock = new ReentrantLock();
     private final Condition sessionAvailable = sessionLock.newCondition();
-    private final Lock storeLock = new ReentrantLock();
+    private ReentrantLock storeLock = new ReentrantLock(); // Shared lock
     private final Condition storeCondition = storeLock.newCondition(); // Shared condition
 
     public Server(int maxSessions) {
@@ -26,7 +26,7 @@ public class Server {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                new ClientHandler(clientSocket, this).start();
+                new ConnectionManager(clientSocket, this).start();
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -39,7 +39,7 @@ public class Server {
             if (!users.containsKey(username) || !users.get(username).equals(password)) {
                 return false;
             }
-            System.out.println("User " + username + " logged in" + " (" + activeSessions + " active sessions)");
+            System.out.println("User " + username + " logged in" + " (" + activeSessions.size() + " active sessions)");
             while (activeSessions.size() >= maxSessions) {
                 sessionAvailable.await();
             }
@@ -56,7 +56,7 @@ public class Server {
             System.out.println("User " + username + " logging out");
             activeSessions.remove(username);
             sessionAvailable.signalAll();
-            System.out.println("User " + username + " logged out" + " (" + activeSessions + " active sessions)");
+            System.out.println("User " + username + " logged out" + " (" + activeSessions.size() + " active sessions)");
         } finally {
             sessionLock.unlock();
         }
@@ -79,7 +79,7 @@ public class Server {
         storeLock.lock();
         try {
             store.put(key, value);
-            storeCondition.signalAll(); // Signal the shared condition
+            storeCondition.signalAll(); // Signal all waiting threads
         } finally {
             storeLock.unlock();
         }
@@ -98,20 +98,23 @@ public class Server {
         storeLock.lock();
         try {
             store.putAll(pairs);
-            storeCondition.signalAll(); // Signal the shared condition
+
         } finally {
+            storeCondition.signalAll();
             storeLock.unlock();
         }
     }
 
     public Map<String, byte[]> multiGet(Set<String> keys) {
+
+        // copy of store to avoid concurrent modification
+        Map<String, byte[]> store_prev = store;
+
         storeLock.lock();
         try {
             Map<String, byte[]> result = new HashMap<>();
             for (String key : keys) {
-                if (store.containsKey(key)) {
-                    result.put(key, store.get(key));
-                }
+                result.put(key, store_prev.get(key));
             }
             return result;
         } finally {
@@ -120,18 +123,27 @@ public class Server {
     }
 
     public byte[] getWhen(String key, String keyCond, byte[] valueCond) throws InterruptedException {
+        System.out.println("Server: getWhen started - waiting for " + keyCond + " to be " + new String(valueCond));
         storeLock.lock();
         try {
-            while (!Arrays.equals(store.get(keyCond), valueCond)) {
-                System.out.println("Waiting for condition to be met");
-                System.out.println(keyCond);
-                System.out.println(valueCond);
-                System.out.println("Key: " + store.get(keyCond) + " Value: " + valueCond);
-                storeCondition.await(); // Await on the shared condition
+            while (true) {
+                byte[] currentValue = store.get(keyCond);
+                if (currentValue != null && Arrays.equals(currentValue, valueCond)) {
+                    byte[] result = store.get(key);
+                    System.out.println("Server: condition met, returning value for " + key);
+                    return result;
+                }
+                System.out.println("Server: condition not met, waiting...");
+                storeCondition.await();
             }
-            return store.get(key);
         } finally {
             storeLock.unlock();
         }
+    }
+
+    public interface GetWhenCallback {
+        void onSuccess(byte[] result);
+
+        void onError(Exception e);
     }
 }

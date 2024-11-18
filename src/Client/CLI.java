@@ -1,3 +1,4 @@
+
 package Client;
 
 import java.util.*;
@@ -8,12 +9,6 @@ public class CLI {
     private static final int port = 8080;
 
     public static void main(String[] args) {
-        // System.out.println("Enter server host:");
-        // String host = scanner.nextLine();
-
-        // System.out.println("Enter server port:");
-        // int port = Integer.parseInt(scanner.nextLine());
-
         while (true) {
             try (Client client = new Client(host, port)) {
                 System.out.println("\n1. Register");
@@ -22,6 +17,7 @@ public class CLI {
 
                 int choice = Integer.parseInt(scanner.nextLine());
 
+                System.out.println(choice);
                 if (choice == 1) {
                     handleRegister(client);
                 } else if (choice == 2) {
@@ -80,7 +76,11 @@ public class CLI {
                 System.out.println("Enter key:");
                 String key = scanner.nextLine();
                 byte[] value = client.get(key);
-                System.out.println("Value: " + (value != null ? new String(value) : "null"));
+                if (value != null) {
+                    System.out.println("Value: " + new String(value));
+                } else {
+                    System.out.println("Value: null");
+                }
             } else if (choice == 3) {
                 Map<String, byte[]> pairs = new HashMap<>();
                 System.out.println("Enter number of pairs:");
@@ -105,7 +105,11 @@ public class CLI {
                 Map<String, byte[]> values = client.multiGet(keys);
                 System.out.println("Values:");
                 for (Map.Entry<String, byte[]> entry : values.entrySet()) {
-                    System.out.println(entry.getKey() + ": " + new String(entry.getValue()));
+                    if (entry.getValue() != null) {
+                        System.out.println(entry.getKey() + ": " + new String(entry.getValue()));
+                    } else {
+                        System.out.println(entry.getKey() + ": null");
+                    }
                 }
             } else if (choice == 5) {
                 System.out.println("Enter key:");
@@ -114,8 +118,27 @@ public class CLI {
                 String keyCond = scanner.nextLine();
                 System.out.println("Enter condition value:");
                 String valueCond = scanner.nextLine();
-                byte[] value = client.getWhen(key, keyCond, valueCond.getBytes());
-                System.out.println("Value: " + (value != null ? new String(value) : "null"));
+                client.getWhen(key, keyCond, valueCond.getBytes(), new Client.AsyncCallback() {
+                    @Override
+                    public void onSuccess(byte[] result) {
+                        if (result != null) {
+                            System.out.println("GetWhen successful. Value: " + new String(result));
+                        } else {
+                            System.out.println("GetWhen successful. Value: null");
+                        }
+                    }
+
+                    @Override
+                    public void onFailure() {
+                        System.out.println("GetWhen failed.");
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+                System.out.println("GetWhen operation started in background.");
             } else if (choice == 6) {
                 client.logout();
                 break;
