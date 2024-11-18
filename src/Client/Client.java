@@ -1,7 +1,6 @@
 package Client;
 
 import Common.*;
-
 import java.net.*;
 import java.io.*;
 import java.util.*;
@@ -12,9 +11,6 @@ public class Client implements AutoCloseable {
     private final DataInputStream in;
     private final DataOutputStream out;
     private final ReentrantLock lock = new ReentrantLock();
-    private final ReentrantLock readLock = new ReentrantLock();
-    private final ReentrantLock outLock = new ReentrantLock();
-    private final ReentrantLock inLock = new ReentrantLock();
 
     public Client(String host, int port) throws IOException {
         socket = new Socket(host, port);
@@ -29,13 +25,7 @@ public class Client implements AutoCloseable {
             out.writeUTF(username);
             out.writeUTF(password);
             out.flush();
-
-            readLock.lock();
-            try {
-                return in.readBoolean();
-            } finally {
-                readLock.unlock();
-            }
+            return in.readBoolean();
         } finally {
             lock.unlock();
         }
@@ -48,13 +38,7 @@ public class Client implements AutoCloseable {
             out.writeUTF(username);
             out.writeUTF(password);
             out.flush();
-
-            readLock.lock();
-            try {
-                return in.readBoolean();
-            } finally {
-                readLock.unlock();
-            }
+            return in.readBoolean();
         } finally {
             lock.unlock();
         }
@@ -68,13 +52,7 @@ public class Client implements AutoCloseable {
             out.writeInt(value.length);
             out.write(value);
             out.flush();
-
-            readLock.lock();
-            try {
-                in.readBoolean(); // Read the response
-            } finally {
-                readLock.unlock();
-            }
+            in.readBoolean(); // Read response
         } finally {
             lock.unlock();
         }
@@ -87,24 +65,16 @@ public class Client implements AutoCloseable {
             out.writeUTF(key);
             out.flush();
 
-            readLock.lock();
-            try {
-                boolean success = in.readBoolean();
-                if (success) {
-                    int length = in.readInt();
-                    if (length > 0) {
-                        byte[] value = new byte[length];
-                        in.readFully(value);
-                        return value;
-                    } else {
-                        return null;
-                    }
-                } else {
-                    return null;
+            boolean success = in.readBoolean();
+            if (success) {
+                int length = in.readInt();
+                if (length > 0) {
+                    byte[] value = new byte[length];
+                    in.readFully(value);
+                    return value;
                 }
-            } finally {
-                readLock.unlock();
             }
+            return null;
         } finally {
             lock.unlock();
         }
@@ -121,13 +91,7 @@ public class Client implements AutoCloseable {
                 out.write(entry.getValue());
             }
             out.flush();
-
-            readLock.lock();
-            try {
-                in.readBoolean(); // Read the response
-            } finally {
-                readLock.unlock();
-            }
+            in.readBoolean(); // Read response
         } finally {
             lock.unlock();
         }
@@ -143,30 +107,24 @@ public class Client implements AutoCloseable {
             }
             out.flush();
 
-            readLock.lock();
-            try {
-                boolean success = in.readBoolean();
-                if (success) {
-                    int size = in.readInt();
-                    Map<String, byte[]> values = new HashMap<>();
-                    for (int i = 0; i < size; i++) {
-                        String key = in.readUTF();
-                        int length = in.readInt();
-                        if (length > 0) {
-                            byte[] value = new byte[length];
-                            in.readFully(value);
-                            values.put(key, value);
-                        } else {
-                            values.put(key, null);
-                        }
+            boolean success = in.readBoolean();
+            if (success) {
+                int size = in.readInt();
+                Map<String, byte[]> values = new HashMap<>();
+                for (int i = 0; i < size; i++) {
+                    String key = in.readUTF();
+                    int length = in.readInt();
+                    if (length > 0) {
+                        byte[] value = new byte[length];
+                        in.readFully(value);
+                        values.put(key, value);
+                    } else {
+                        values.put(key, null);
                     }
-                    return values;
-                } else {
-                    return null;
                 }
-            } finally {
-                readLock.unlock();
+                return values;
             }
+            return null;
         } finally {
             lock.unlock();
         }
@@ -175,48 +133,40 @@ public class Client implements AutoCloseable {
     public void getWhen(String key, String keyCond, byte[] valueCond, AsyncCallback callback) {
         System.out.println("Client: starting getWhen operation");
         new Thread(() -> {
-            outLock.lock();
             try {
-                System.out.println("Client: sending request");
-                out.writeInt(Request.GET_WHEN);
-                out.writeUTF(key);
-                out.writeUTF(keyCond);
-                out.writeInt(valueCond.length);
-                out.write(valueCond);
-                out.flush();
-            } catch (IOException e) {
-                System.out.println("Client: error: " + e.getMessage());
-            } finally {
-                outLock.unlock();
-            }
-
-            try {
-                inLock.lock();
+                // Only lock while sending request
+                lock.lock();
                 try {
-                    System.out.println("Client: reading response");
-                    boolean success = in.readBoolean();
-                    System.out.println("Client: success=" + success);
-
-                    if (success) {
-                        int length = in.readInt();
-                        System.out.println("Client: length=" + length);
-                        if (length > 0) {
-                            byte[] value = new byte[length];
-                            in.readFully(value);
-                            System.out.println("Client: received value: " + new String(value));
-                            callback.onSuccess(value);
-                        } else {
-                            callback.onSuccess(null);
-                        }
-                    } else {
-                        callback.onFailure();
-                    }
+                    System.out.println("Client: sending request");
+                    out.writeInt(Request.GET_WHEN);
+                    out.writeUTF(key);
+                    out.writeUTF(keyCond);
+                    out.writeInt(valueCond.length);
+                    out.write(valueCond);
+                    out.flush();
                 } finally {
-                    inLock.unlock();
+                    lock.unlock();
+                }
+
+                // Read response without holding the lock
+                System.out.println("Client: reading response");
+                boolean success = in.readBoolean();
+                System.out.println("Client: success=" + success);
+
+                if (success) {
+                    int length = in.readInt();
+                    if (length > 0) {
+                        byte[] value = new byte[length];
+                        in.readFully(value);
+                        callback.onSuccess(value);
+                    } else {
+                        callback.onSuccess(null);
+                    }
+                } else {
+                    callback.onFailure();
                 }
             } catch (IOException e) {
                 System.out.println("Client: error: " + e.getMessage());
-                e.printStackTrace();
                 callback.onError(e);
             }
         }).start();
