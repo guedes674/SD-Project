@@ -8,123 +8,95 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class Client implements AutoCloseable {
     private final Socket socket;
-    private final DataInputStream in;
-    private final DataOutputStream out;
+    private final Connection connection;
+    private final Demultiplexer demultiplexer;
     private final ReentrantLock lock = new ReentrantLock();
 
     public Client(String host, int port) throws IOException {
         socket = new Socket(host, port);
-        out = new DataOutputStream(socket.getOutputStream());
-        in = new DataInputStream(socket.getInputStream());
+        connection = new Connection(socket);
+        demultiplexer = new Demultiplexer(connection);
+        demultiplexer.start();
     }
 
-    public boolean authenticate(String username, String password) throws IOException {
+    public boolean authenticate(String username, String password) throws IOException, InterruptedException {
         lock.lock();
         try {
-            out.writeInt(Request.AUTH);
-            out.writeUTF(username);
-            out.writeUTF(password);
-            out.flush();
-            return in.readBoolean();
+            demultiplexer.send(new Frame(Request.AUTH, username, password.getBytes()));
+            byte[] response = demultiplexer.receive(Request.AUTH);
+            return new String(response).equals("Autenticado com sucesso!");
         } finally {
             lock.unlock();
         }
     }
 
-    public boolean register(String username, String password) throws IOException {
+    public boolean register(String username, String password) throws IOException, InterruptedException {
         lock.lock();
         try {
-            out.writeInt(Request.REGISTER);
-            out.writeUTF(username);
-            out.writeUTF(password);
-            out.flush();
-            return in.readBoolean();
+            demultiplexer.send(new Frame(Request.REGISTER, username, password.getBytes()));
+            byte[] response = demultiplexer.receive(Request.REGISTER);
+            return new String(response).equals("Registrado com sucesso!");
         } finally {
             lock.unlock();
         }
     }
 
-    public void put(String key, byte[] value) throws IOException {
+    public void put(String key, byte[] value) throws IOException, InterruptedException {
         lock.lock();
         try {
-            out.writeInt(Request.PUT);
-            out.writeUTF(key);
-            out.writeInt(value.length);
-            out.write(value);
-            out.flush();
-            in.readBoolean(); // Read response
+            demultiplexer.send(new Frame(Request.PUT, key, value));
+            demultiplexer.receive(Request.PUT); // Read response
         } finally {
             lock.unlock();
         }
     }
 
-    public byte[] get(String key) throws IOException {
+    public byte[] get(String key) throws IOException, InterruptedException {
         lock.lock();
         try {
-            out.writeInt(Request.GET);
-            out.writeUTF(key);
-            out.flush();
-
-            boolean success = in.readBoolean();
-            if (success) {
-                int length = in.readInt();
-                if (length > 0) {
-                    byte[] value = new byte[length];
-                    in.readFully(value);
-                    return value;
-                }
-            }
-            return null;
+            demultiplexer.send(new Frame(Request.GET, key, new byte[0]));
+            return demultiplexer.receive(Request.GET);
         } finally {
             lock.unlock();
         }
     }
 
-    public void multiPut(Map<String, byte[]> pairs) throws IOException {
+    public void multiPut(Map<String, byte[]> pairs) throws IOException, InterruptedException {
         lock.lock();
         try {
-            out.writeInt(Request.MULTI_PUT);
-            out.writeInt(pairs.size());
+            // contruir a lista de frames
+            FrameList frameList = new FrameList();
             for (Map.Entry<String, byte[]> entry : pairs.entrySet()) {
-                out.writeUTF(entry.getKey());
-                out.writeInt(entry.getValue().length);
-                out.write(entry.getValue());
+                frameList.add(new Frame(Request.PUT, entry.getKey(), entry.getValue()));
             }
-            out.flush();
-            in.readBoolean(); // Read response
+            demultiplexer.send(frameList);
         } finally {
             lock.unlock();
         }
     }
 
-    public Map<String, byte[]> multiGet(Set<String> keys) throws IOException {
+    public Map<String, byte[]> multiGet(Set<String> keys) throws IOException, InterruptedException {
         lock.lock();
         try {
-            out.writeInt(Request.MULTI_GET);
-            out.writeInt(keys.size());
+            // Create request framelist
+            FrameList requestFrames = new FrameList();
             for (String key : keys) {
-                out.writeUTF(key);
+                requestFrames.add(new Frame(Request.GET, key, new byte[0]));
             }
-            out.flush();
 
-            boolean success = in.readBoolean();
-            if (success) {
-                int size = in.readInt();
-                Map<String, byte[]> values = new HashMap<>();
-                for (int i = 0; i < size; i++) {
-                    String key = in.readUTF();
-                    int length = in.readInt();
-                    if (length > 0) {
-                        byte[] value = new byte[length];
-                        in.readFully(value);
-                        values.put(key, value);
-                    } else {
-                        values.put(key, null);
-                    }
-                }
-                return values;
+            // Send the request framelist
+            demultiplexer.send(requestFrames);
+
+            // Receive response framelist
+            FrameList responseFrames = demultiplexer.receiveFrameList();
+
+            // Convert response to map
+            Map<String, byte[]> results = new HashMap<>();
+            for (Frame frame : responseFrames) {
+                results.put(frame.stringInput, frame.data);
             }
-            return null;
+
+            return results;
         } finally {
             lock.unlock();
         }
@@ -134,49 +106,27 @@ public class Client implements AutoCloseable {
         System.out.println("Client: starting getWhen operation");
         new Thread(() -> {
             try {
-                // Only lock while sending request
                 lock.lock();
                 try {
-                    System.out.println("Client: sending request");
-                    out.writeInt(Request.GET_WHEN);
-                    out.writeUTF(key);
-                    out.writeUTF(keyCond);
-                    out.writeInt(valueCond.length);
-                    out.write(valueCond);
-                    out.flush();
+                    demultiplexer.send(new Frame(Request.GET_WHEN, key, keyCond.getBytes()));
+                    byte[] response = demultiplexer.receive(Request.GET_WHEN);
+                    callback.onSuccess(response);
                 } finally {
                     lock.unlock();
                 }
-
-                // Read response without holding the lock
-                System.out.println("Client: reading response");
-                boolean success = in.readBoolean();
-                System.out.println("Client: success=" + success);
-
-                if (success) {
-                    int length = in.readInt();
-                    if (length > 0) {
-                        byte[] value = new byte[length];
-                        in.readFully(value);
-                        callback.onSuccess(value);
-                    } else {
-                        callback.onSuccess(null);
-                    }
-                } else {
-                    callback.onFailure();
-                }
-            } catch (IOException e) {
-                System.out.println("Client: error: " + e.getMessage());
+            } catch (Exception e) {
                 callback.onError(e);
             }
         }).start();
     }
 
-    public void logout() throws IOException {
+    public void logout() throws IOException, InterruptedException {
         lock.lock();
         try {
-            out.writeInt(Request.LOGOUT);
-            out.flush();
+            FrameList frameList = new FrameList();
+            frameList.add(new Frame(Request.LOGOUT, "", new byte[0]));
+            demultiplexer.send(frameList);
+            demultiplexer.receive(Request.LOGOUT); // Read response
         } finally {
             lock.unlock();
         }
@@ -185,7 +135,7 @@ public class Client implements AutoCloseable {
     @Override
     public void close() throws IOException {
         try {
-            logout();
+            demultiplexer.close();
         } finally {
             socket.close();
         }
