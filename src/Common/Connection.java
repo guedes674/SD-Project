@@ -17,30 +17,12 @@ public class Connection implements AutoCloseable {
         this.dos = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
     }
 
-    public void send(int tag, String stringInput, byte[] data) throws IOException {
-        wl.lock();
-        try {
-            new Frame(tag, stringInput, data).serialize(dos);
-            dos.flush();
-        } finally {
-            wl.unlock();
-        }
-    }
-
     public void send(Frame frame) throws IOException {
         wl.lock();
         try {
+            System.out.println("Connection: Sending frame with tag " + frame.tag);
+            System.out.println("Connection: Sending frame with keyValuePairs " + frame.keyValuePairs);
             frame.serialize(dos);
-            dos.flush();
-        } finally {
-            wl.unlock();
-        }
-    }
-
-    public void send(FrameList frameList) throws IOException {
-        wl.lock();
-        try {
-            frameList.serialize(dos);
             dos.flush();
         } finally {
             wl.unlock();
@@ -51,15 +33,6 @@ public class Connection implements AutoCloseable {
         rl.lock();
         try {
             return Frame.deserialize(dis);
-        } finally {
-            rl.unlock();
-        }
-    }
-
-    public FrameList receiveFrameList() throws IOException {
-        rl.lock();
-        try {
-            return FrameList.deserialize(dis);
         } finally {
             rl.unlock();
         }

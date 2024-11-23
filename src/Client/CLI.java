@@ -1,4 +1,3 @@
-
 package Client;
 
 import java.util.*;
@@ -11,21 +10,31 @@ public class CLI {
     public static void main(String[] args) {
         while (true) {
             try (Client client = new Client(host, port)) {
-                System.out.println("\n1. Register");
-                System.out.println("2. Login");
-                System.out.println("3. Exit");
+                while (true) {
+                    if (client.username == null) {
+                        System.out.println("\n1. Register");
+                        System.out.println("2. Login");
+                        System.out.println("3. Exit");
 
-                int choice = Integer.parseInt(scanner.nextLine());
+                        int choice = Integer.parseInt(scanner.nextLine());
 
-                System.out.println(choice);
-                if (choice == 1) {
-                    handleRegister(client);
-                } else if (choice == 2) {
-                    if (handleLogin(client)) {
+                        if (choice == 1) {
+                            handleRegister(client);
+                        } else if (choice == 2) {
+                            if (handleLogin(client)) {
+                                System.out.println("Login successful");
+                            } else {
+                                System.out.println("Login failed");
+                            }
+                        } else if (choice == 3) {
+                            System.out.println("Exiting...");
+                            return;
+                        } else {
+                            System.out.println("Invalid choice. Please try again.");
+                        }
+                    } else {
                         handleOperations(client);
                     }
-                } else {
-                    break;
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -39,8 +48,12 @@ public class CLI {
         System.out.println("Enter password:");
         String password = scanner.nextLine();
 
-        boolean success = client.register(username, password);
-        System.out.println(success ? "Registration successful" : "Registration failed");
+        try {
+            client.register(username, password);
+            System.out.println("Registration successful");
+        } catch (Exception e) {
+            System.out.println("Registration failed - " + e.getMessage());
+        }
     }
 
     private static boolean handleLogin(Client client) throws Exception {
@@ -50,7 +63,6 @@ public class CLI {
         String password = scanner.nextLine();
 
         boolean success = client.authenticate(username, password);
-        System.out.println(success ? "Login successful" : "Login failed");
         return success;
     }
 
@@ -141,7 +153,10 @@ public class CLI {
                 System.out.println("GetWhen operation started in background.");
             } else if (choice == 6) {
                 client.logout();
+                System.out.println("Logout successful");
                 break;
+            } else {
+                System.out.println("Invalid choice. Please try again.");
             }
         }
     }

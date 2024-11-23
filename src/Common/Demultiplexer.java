@@ -17,7 +17,7 @@ public class Demultiplexer {
 
     private class FrameValue {
         int waiters = 0;
-        Queue<byte[]> queue = new ArrayDeque<>();
+        Queue<Frame> queue = new ArrayDeque<>();
         Condition c = l.newCondition();
 
         public FrameValue() {
@@ -36,18 +36,24 @@ public class Demultiplexer {
                     l.lock();
                     try {
                         FrameValue fv = map.get(frame.tag);
-                        if (fv == null) {
-                            fv = new FrameValue();
-                            map.put(frame.tag, fv);
+                        if (fv != null) {
+                            fv.queue.add(frame);
+                            fv.c.signal();
                         }
-                        fv.queue.add(frame.data);
-                        fv.c.signal();
                     } finally {
                         l.unlock();
                     }
                 }
             } catch (IOException e) {
-                exception = e;
+                l.lock();
+                try {
+                    exception = e;
+                    for (FrameValue fv : map.values()) {
+                        fv.c.signalAll();
+                    }
+                } finally {
+                    l.unlock();
+                }
             }
         }).start();
     }
@@ -57,74 +63,19 @@ public class Demultiplexer {
         c.send(frame);
     }
 
-    public void send(FrameList frameList) throws IOException {
-        c.send(frameList);
-    }
-
-    // public void send(int tag, String username, byte[] data) throws IOException {
-    // c.send(tag, username, data);
-    // }
-
-    public byte[] receive(int tag) throws IOException, InterruptedException {
+    public Frame receive(int tag) throws IOException, InterruptedException {
         l.lock();
-        FrameValue fv;
         try {
-            fv = map.get(tag);
-            if (fv == null) {
-                fv = new FrameValue();
-                map.put(tag, fv);
-            }
+            FrameValue fv = map.computeIfAbsent(tag, k -> new FrameValue());
             fv.waiters++;
-            while (true) {
-                if (!fv.queue.isEmpty()) {
-                    fv.waiters--;
-                    byte[] reply = fv.queue.poll();
-                    if (fv.waiters == 0 && fv.queue.isEmpty())
-                        map.remove(tag);
-                    return reply;
-                }
-                if (exception != null) {
-                    throw exception;
-                }
+            while (fv.queue.isEmpty() && exception == null) {
                 fv.c.await();
             }
-        } finally {
-            l.unlock();
-        }
-    }
-
-    public FrameList receiveFrameList() throws IOException, InterruptedException {
-        l.lock();
-        try {
-            FrameList frameList = c.receiveFrameList();
-            FrameList responseList = new FrameList();
-
-            // For each frame, wait for its response
-            for (Frame frame : frameList) {
-                FrameValue fv = map.get(frame.tag);
-                if (fv == null) {
-                    fv = new FrameValue();
-                    map.put(frame.tag, fv);
-                }
-                fv.waiters++;
-
-                while (true) {
-                    if (!fv.queue.isEmpty()) {
-                        fv.waiters--;
-                        byte[] reply = fv.queue.poll();
-                        if (fv.waiters == 0 && fv.queue.isEmpty())
-                            map.remove(frame.tag);
-                        responseList.add(new Frame(frame.tag, frame.stringInput, reply));
-                        break;
-                    }
-                    if (exception != null) {
-                        throw exception;
-                    }
-                    fv.c.await();
-                }
+            fv.waiters--;
+            if (exception != null) {
+                throw exception;
             }
-
-            return responseList;
+            return fv.queue.poll();
         } finally {
             l.unlock();
         }
