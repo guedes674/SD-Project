@@ -6,6 +6,9 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 
+/**
+ * Command Line Interface (CLI) for interacting with the client.
+ */
 public class CLI {
     private static final Scanner scanner = new Scanner(System.in);
     private static Client client;
@@ -67,6 +70,11 @@ public class CLI {
         }
     }
 
+    /**
+     * Handles user registration.
+     *
+     * @param client The client instance
+     */
     private static void handleRegister(Client client) {
         System.out.println(BLUE + "\n--- Register ---" + RESET);
         System.out.print("Enter username: ");
@@ -82,6 +90,13 @@ public class CLI {
         }
     }
 
+    /**
+     * Handles user login.
+     *
+     * @param client The client instance
+     * @return True if login is successful, false otherwise
+     * @throws Exception If an error occurs during login
+     */
     private static boolean handleLogin(Client client) throws Exception {
         System.out.println(BLUE + "\n--- Login ---" + RESET);
         System.out.print("Enter username: ");
@@ -96,6 +111,12 @@ public class CLI {
         return success;
     }
 
+    /**
+     * Handles operations menu after login.
+     *
+     * @param client The client instance
+     * @throws Exception If an error occurs during operations
+     */
     private static void handleOperations(Client client) throws Exception {
         while (true) {
             System.out.println(BLUE + "\n--- Operations Menu ---" + RESET);
@@ -134,6 +155,12 @@ public class CLI {
         }
     }
 
+    /**
+     * Handles the PUT operation.
+     *
+     * @param client The client instance
+     * @throws Exception If an error occurs during the PUT operation
+     */
     private static void handlePut(Client client) throws Exception {
         System.out.println(BLUE + "\n--- Put ---" + RESET);
         System.out.print("Enter key: ");
@@ -145,6 +172,12 @@ public class CLI {
         System.out.println(GREEN + "Put operation successful" + RESET);
     }
 
+    /**
+     * Handles the GET operation.
+     *
+     * @param client The client instance
+     * @throws Exception If an error occurs during the GET operation
+     */
     private static void handleGet(Client client) throws Exception {
         System.out.println(BLUE + "\n--- Get ---" + RESET);
         System.out.print("Enter key: ");
@@ -154,6 +187,12 @@ public class CLI {
         System.out.println(GREEN + "Get operation successful. Value: " + new String(value) + RESET);
     }
 
+    /**
+     * Handles the MultiPut operation.
+     *
+     * @param client The client instance
+     * @throws Exception If an error occurs during the MultiPut operation
+     */
     private static void handleMultiPut(Client client) throws Exception {
         System.out.println(BLUE + "\n--- MultiPut ---" + RESET);
         Map<String, byte[]> pairs = new HashMap<>();
@@ -172,6 +211,12 @@ public class CLI {
         System.out.println(GREEN + "MultiPut operation successful" + RESET);
     }
 
+    /**
+     * Handles the MultiGet operation.
+     *
+     * @param client The client instance
+     * @throws Exception If an error occurs during the MultiGet operation
+     */
     private static void handleMultiGet(Client client) throws Exception {
         System.out.println(BLUE + "\n--- MultiGet ---" + RESET);
         Set<String> keys = new HashSet<>();
@@ -191,6 +236,12 @@ public class CLI {
         }
     }
 
+    /**
+     * Handles the GetWhen operation.
+     *
+     * @param client The client instance
+     * @throws Exception If an error occurs during the GetWhen operation
+     */
     private static void handleGetWhen(Client client) throws Exception {
         System.out.println(BLUE + "\n--- GetWhen ---" + RESET);
         System.out.print("Enter key: ");

@@ -6,11 +6,21 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * Client class that handles communication with the server.
+ */
 public class Client implements AutoCloseable {
     private final Demultiplexer demultiplexer;
     private final ReentrantLock lock = new ReentrantLock();
     public String username;
 
+    /**
+     * Constructs a new Client and connects to the server.
+     *
+     * @param host The server host
+     * @param port The server port
+     * @throws IOException If an I/O error occurs
+     */
     public Client(String host, int port) throws IOException {
         Socket socket = new Socket(host, port);
         Connection connection = new Connection(socket);
@@ -19,6 +29,14 @@ public class Client implements AutoCloseable {
         this.username = null;
     }
 
+    /**
+     * Sends a PUT request to the server.
+     *
+     * @param key   The key to store
+     * @param value The value to store
+     * @throws IOException          If an I/O error occurs
+     * @throws InterruptedException If the thread is interrupted
+     */
     public void put(String key, byte[] value) throws IOException, InterruptedException {
         lock.lock();
         try {
@@ -32,6 +50,14 @@ public class Client implements AutoCloseable {
         }
     }
 
+    /**
+     * Sends a GET request to the server.
+     *
+     * @param key The key to retrieve
+     * @return The value associated with the key
+     * @throws IOException          If an I/O error occurs
+     * @throws InterruptedException If the thread is interrupted
+     */
     public byte[] get(String key) throws IOException, InterruptedException {
         lock.lock();
         try {
@@ -45,6 +71,13 @@ public class Client implements AutoCloseable {
         }
     }
 
+    /**
+     * Sends a multi-put request to the server.
+     *
+     * @param pairs The key-value pairs to store
+     * @throws IOException          If an I/O error occurs
+     * @throws InterruptedException If the thread is interrupted
+     */
     public void multiPut(Map<String, byte[]> pairs) throws IOException, InterruptedException {
         lock.lock();
         try {
@@ -56,6 +89,14 @@ public class Client implements AutoCloseable {
         }
     }
 
+    /**
+     * Sends a multi-get request to the server.
+     *
+     * @param keys The keys to retrieve
+     * @return The key-value pairs retrieved from the server
+     * @throws IOException          If an I/O error occurs
+     * @throws InterruptedException If the thread is interrupted
+     */
     public Map<String, byte[]> multiGet(Set<String> keys) throws IOException, InterruptedException {
         lock.lock();
         try {
@@ -71,6 +112,14 @@ public class Client implements AutoCloseable {
         }
     }
 
+    /**
+     * Sends a get-when request to the server.
+     *
+     * @param key       The key to retrieve
+     * @param keyCond   The condition key
+     * @param valueCond The condition value
+     * @param callback  The callback to handle the response
+     */
     public void getWhen(String key, String keyCond, byte[] valueCond, AsyncCallback callback) {
         System.out.println("Client: starting getWhen operation");
         new Thread(() -> {
@@ -90,6 +139,15 @@ public class Client implements AutoCloseable {
         }).start();
     }
 
+    /**
+     * Registers a new user with the server.
+     *
+     * @param username The username
+     * @param password The password
+     * @return True if registration is successful, false otherwise
+     * @throws IOException          If an I/O error occurs
+     * @throws InterruptedException If the thread is interrupted
+     */
     public boolean register(String username, String password) throws IOException, InterruptedException {
         Map<String, byte[]> credentials = new HashMap<>();
         credentials.put(username, password.getBytes());
@@ -103,6 +161,15 @@ public class Client implements AutoCloseable {
         return responseFrame.keyValuePairs.containsKey("Registo efetuado com sucesso!");
     }
 
+    /**
+     * Authenticates a user with the server.
+     *
+     * @param username The username
+     * @param password The password
+     * @return True if authentication is successful, false otherwise
+     * @throws IOException          If an I/O error occurs
+     * @throws InterruptedException If the thread is interrupted
+     */
     public boolean authenticate(String username, String password) throws IOException, InterruptedException {
         Map<String, byte[]> credentials = new HashMap<>();
         credentials.put(username, password.getBytes());
@@ -122,6 +189,12 @@ public class Client implements AutoCloseable {
         return true;
     }
 
+    /**
+     * Logs out the current user.
+     *
+     * @throws IOException          If an I/O error occurs
+     * @throws InterruptedException If the thread is interrupted
+     */
     public void logout() throws IOException, InterruptedException {
         if (username != null) {
             Map<String, byte[]> request = new HashMap<>();
@@ -132,6 +205,9 @@ public class Client implements AutoCloseable {
         }
     }
 
+    /**
+     * Interface for asynchronous callbacks.
+     */
     public interface AsyncCallback {
         void onSuccess(byte[] result);
 
@@ -140,10 +216,15 @@ public class Client implements AutoCloseable {
         void onError(Exception e);
     }
 
+    /**
+     * Closes the client, logging out and closing the demultiplexer.
+     *
+     * @throws IOException          If an I/O error occurs
+     * @throws InterruptedException If the thread is interrupted
+     */
     @Override
     public void close() throws IOException, InterruptedException {
         logout();
         demultiplexer.close();
-
     }
 }

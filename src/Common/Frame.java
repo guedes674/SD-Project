@@ -7,16 +7,31 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Frame class that represents a frame of data to be sent or received.
+ */
 public class Frame {
 
     public final int tag;
     public final Map<String, byte[]> keyValuePairs;
 
+    /**
+     * Constructs a new Frame.
+     *
+     * @param tag           The tag of the frame
+     * @param keyValuePairs The key-value pairs in the frame
+     */
     public Frame(int tag, Map<String, byte[]> keyValuePairs) {
         this.tag = tag;
         this.keyValuePairs = Collections.unmodifiableMap(new HashMap<>(keyValuePairs));
     }
 
+    /**
+     * Serializes the frame to a DataOutputStream.
+     *
+     * @param out The DataOutputStream to serialize to
+     * @throws IOException If an I/O error occurs
+     */
     public void serialize(DataOutputStream out) throws IOException {
         out.writeInt(tag);
         out.writeInt(keyValuePairs.size());
@@ -27,6 +42,13 @@ public class Frame {
         }
     }
 
+    /**
+     * Deserializes a frame from a DataInputStream.
+     *
+     * @param in The DataInputStream to deserialize from
+     * @return The deserialized frame
+     * @throws IOException If an I/O error occurs
+     */
     public static Frame deserialize(DataInputStream in) throws IOException {
         int tag = in.readInt();
         int mapSize = in.readInt();
@@ -41,7 +63,11 @@ public class Frame {
         return new Frame(tag, keyValuePairs);
     }
 
-    // toString method for debugging, transform map of byte[] to map of String
+    /**
+     * Returns a string representation of the frame for debugging.
+     *
+     * @return A string representation of the frame
+     */
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
