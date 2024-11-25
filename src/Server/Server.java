@@ -21,7 +21,7 @@ public class Server {
     private static final Map<String, byte[]> store = new HashMap<>();
     private static final Set<String> loggedInUsers = new HashSet<>();
     private static final Queue<Connection> waitingQueue = new LinkedList<>();
-    private static final int MAX_SESSIONS = 1;
+    private static final int MAX_SESSIONS = 3;
     private static int currentSessions = 0;
 
     public static void main(String[] args) throws IOException {
@@ -33,38 +33,47 @@ public class Server {
             Socket clientSocket = serverSocket.accept();
             System.out.println("Client connected from " + clientSocket.getInetAddress().getHostAddress());
             Connection c = new Connection(clientSocket);
-            Runnable worker = () -> {
-                try {
-                    while (true) {
-                        Frame frame = c.receive();
-                        switch (frame.tag) {
-                            case Request.AUTH:
-                                handleAuth(frame, c);
-                                break;
-                            case Request.REGISTER:
-                                handleRegister(frame, c);
-                                break;
-                            case Request.PUT:
-                                handleMultiPut(frame, c);
-                                break;
-                            case Request.GET:
-                                handleMultiGet(frame, c);
-                                break;
-                            case Request.GET_WHEN:
-                                handleGetWhen(frame, c);
-                                break;
-                            case Request.LOGOUT:
-                                handleLogout(frame, c);
-                                break;
-                            default:
-                                System.out.println("Unknown request type: " + frame.tag);
-                        }
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            };
-            new Thread(worker).start();
+            new Thread(() -> handleClient(c)).start();
+        }
+    }
+
+    private static void handleClient(Connection c) {
+        try {
+            while (true) {
+                Frame frame = c.receive();
+                new Thread(() -> handleRequest(frame, c)).start();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void handleRequest(Frame frame, Connection c) {
+        try {
+            switch (frame.tag) {
+                case Request.AUTH:
+                    handleAuth(frame, c);
+                    break;
+                case Request.REGISTER:
+                    handleRegister(frame, c);
+                    break;
+                case Request.PUT:
+                    handleMultiPut(frame, c);
+                    break;
+                case Request.GET:
+                    handleMultiGet(frame, c);
+                    break;
+                case Request.GET_WHEN:
+                    handleGetWhen(frame, c);
+                    break;
+                case Request.LOGOUT:
+                    handleLogout(frame, c);
+                    break;
+                default:
+                    System.out.println("Unknown request type: " + frame.tag);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -100,11 +109,11 @@ public class Server {
                     System.out.println("Current sessions: " + currentSessions);
                 } else {
                     c.send(new Frame(Request.AUTH,
-                            Collections.singletonMap("ERRO", "Erro - palavra-passe errada.".getBytes())));
+                            Collections.singletonMap("ERROR", "Erro - palavra-passe errada.".getBytes())));
                 }
             } else {
                 c.send(new Frame(Request.AUTH,
-                        Collections.singletonMap("ERRO", "Erro - conta não existe.".getBytes())));
+                        Collections.singletonMap("ERROR", "Erro - conta não existe.".getBytes())));
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -122,8 +131,8 @@ public class Server {
         try {
             if (credentialsMap.containsKey(username)) {
                 System.out.println("Server: Account already exists");
-                c.send(new Frame(Request.REGISTER, Collections.singletonMap(username,
-                        "Erro - endereço de email já pertence a uma conta.".getBytes())));
+                c.send(new Frame(Request.REGISTER, Collections.singletonMap("ERROR",
+                        "Erro - username já pertence a uma conta.".getBytes())));
             } else {
                 System.out.println("Server: Creating new account");
                 credentialsMap.put(username, password);
@@ -158,8 +167,9 @@ public class Server {
         storeLock.lock();
         try {
             for (String key : frame.keyValuePairs.keySet()) {
+
                 byte[] value = store.get(key);
-                results.put(key, value != null ? value : new byte[0]);
+                results.put(key, value != null ? value : "null".getBytes());
             }
         } finally {
             storeLock.unlock();
@@ -169,22 +179,36 @@ public class Server {
 
     private static void handleGetWhen(Frame frame, Connection c) throws IOException {
         System.out.println("GetWhen request.");
-        String keyCond = frame.keyValuePairs.keySet().iterator().next();
-        byte[] valueCond = frame.keyValuePairs.get(keyCond);
+        Map<String, byte[]> request = frame.keyValuePairs;
+        Iterator<String> keysIterator = request.keySet().iterator();
 
-        byte[] value;
-        storeLock.lock();
-        try {
-            while (!Arrays.equals(store.get(keyCond), valueCond)) {
-                storeCondition.await();
+        // Get key and keyCond remembering the order they were inserted
+        String keyCond = keysIterator.next();
+        String key = keysIterator.next();
+        byte[] valueCond = request.get(keyCond);
+
+        System.out.println("Frame: " + frame.toString());
+
+        new Thread(() -> {
+            byte[] value;
+            storeLock.lock();
+            try {
+                while (!Arrays.equals(store.get(keyCond), valueCond)) {
+                    storeCondition.await();
+                }
+                value = store.get(key);
+            } catch (InterruptedException e) {
+                value = null;
+            } finally {
+                storeLock.unlock();
             }
-            value = store.get(keyCond);
-        } catch (InterruptedException e) {
-            throw new IOException(e);
-        } finally {
-            storeLock.unlock();
-        }
-        c.send(new Frame(Request.GET_WHEN, Collections.singletonMap(keyCond, value != null ? value : new byte[0])));
+            try {
+                c.send(new Frame(Request.GET_WHEN,
+                        Collections.singletonMap(key, value != null ? value : "null".getBytes())));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }).start();
     }
 
     private static void handleLogout(Frame frame, Connection c) throws IOException {
@@ -205,4 +229,5 @@ public class Server {
             liuLock.unlock();
         }
     }
+
 }

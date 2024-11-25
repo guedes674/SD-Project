@@ -36,46 +36,49 @@ public class Demultiplexer {
                     l.lock();
                     try {
                         FrameValue fv = map.get(frame.tag);
-                        if (fv != null) {
-                            fv.queue.add(frame);
-                            fv.c.signal();
+                        if (fv == null) {
+                            fv = new FrameValue();
+                            map.put(frame.tag, fv);
                         }
+                        fv.queue.add(frame);
+                        fv.c.signal();
                     } finally {
                         l.unlock();
                     }
                 }
             } catch (IOException e) {
-                l.lock();
-                try {
-                    exception = e;
-                    for (FrameValue fv : map.values()) {
-                        fv.c.signalAll();
-                    }
-                } finally {
-                    l.unlock();
-                }
+                exception = e;
             }
         }).start();
     }
 
     public void send(Frame frame) throws IOException {
-        System.out.println("Demultiplexer: Sending frame with tag " + frame.tag);
         c.send(frame);
     }
 
     public Frame receive(int tag) throws IOException, InterruptedException {
         l.lock();
+        FrameValue fv;
         try {
-            FrameValue fv = map.computeIfAbsent(tag, k -> new FrameValue());
+            fv = map.get(tag);
+            if (fv == null) {
+                fv = new FrameValue();
+                map.put(tag, fv);
+            }
             fv.waiters++;
-            while (fv.queue.isEmpty() && exception == null) {
+            while (true) {
+                if (!fv.queue.isEmpty()) {
+                    fv.waiters--;
+                    Frame reply = fv.queue.poll();
+                    if (fv.waiters == 0 && fv.queue.isEmpty())
+                        map.remove(tag);
+                    return reply;
+                }
+                if (exception != null) {
+                    throw exception;
+                }
                 fv.c.await();
             }
-            fv.waiters--;
-            if (exception != null) {
-                throw exception;
-            }
-            return fv.queue.poll();
         } finally {
             l.unlock();
         }
@@ -83,5 +86,9 @@ public class Demultiplexer {
 
     public void close() throws IOException {
         c.close();
+    }
+
+    public Connection getConnection() {
+        return c;
     }
 }

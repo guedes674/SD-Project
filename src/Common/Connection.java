@@ -20,8 +20,7 @@ public class Connection implements AutoCloseable {
     public void send(Frame frame) throws IOException {
         wl.lock();
         try {
-            System.out.println("Connection: Sending frame with tag " + frame.tag);
-            System.out.println("Connection: Sending frame with keyValuePairs " + frame.keyValuePairs);
+            System.out.println("Connection: Sending frame with tag " + frame.toString());
             frame.serialize(dos);
             dos.flush();
         } finally {

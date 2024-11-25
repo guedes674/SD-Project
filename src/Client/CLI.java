@@ -1,163 +1,220 @@
 package Client;
 
-import java.util.*;
+import java.util.Scanner;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
 
 public class CLI {
     private static final Scanner scanner = new Scanner(System.in);
-    private static final String host = "localhost";
-    private static final int port = 8080;
+    private static Client client;
+
+    // ANSI escape codes for colors
+    private static final String RESET = "\u001B[0m";
+    private static final String RED = "\u001B[31m";
+    private static final String GREEN = "\u001B[32m";
+    private static final String BLUE = "\u001B[34m";
 
     public static void main(String[] args) {
-        while (true) {
-            try (Client client = new Client(host, port)) {
-                while (true) {
-                    if (client.username == null) {
-                        System.out.println("\n1. Register");
-                        System.out.println("2. Login");
-                        System.out.println("3. Exit");
+        try {
+            String host = "localhost";
+            int port = 8080;
 
-                        int choice = Integer.parseInt(scanner.nextLine());
+            client = new Client(host, port);
 
-                        if (choice == 1) {
-                            handleRegister(client);
-                        } else if (choice == 2) {
-                            if (handleLogin(client)) {
-                                System.out.println("Login successful");
-                            } else {
-                                System.out.println("Login failed");
-                            }
-                        } else if (choice == 3) {
-                            System.out.println("Exiting...");
-                            return;
-                        } else {
-                            System.out.println("Invalid choice. Please try again.");
-                        }
-                    } else {
-                        handleOperations(client);
+            // Add shutdown hook to handle logout on Ctrl+C
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    if (client != null) {
+                        client.close();
+                        System.out.println(GREEN + "Logged out successfully" + RESET);
                     }
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
+            }));
+
+            while (true) {
+                System.out.println(BLUE + "\n--- Main Menu ---" + RESET);
+                System.out.println("1. Register");
+                System.out.println("2. Login");
+                System.out.println("3. Exit");
+                System.out.print("Select an option: ");
+                String choice = scanner.nextLine();
+
+                switch (choice) {
+                    case "1":
+                        handleRegister(client);
+                        break;
+                    case "2":
+                        if (handleLogin(client)) {
+                            handleOperations(client);
+                        } else {
+                            System.out.println(RED + "Login failed" + RESET);
+                        }
+                        break;
+                    case "3":
+                        System.out.println("Exiting...");
+                        client.close();
+                        return;
+                    default:
+                        System.out.println(RED + "Invalid option. Please try again." + RESET);
+                }
             }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
-    private static void handleRegister(Client client) throws Exception {
-        System.out.println("Enter username:");
+    private static void handleRegister(Client client) {
+        System.out.println(BLUE + "\n--- Register ---" + RESET);
+        System.out.print("Enter username: ");
         String username = scanner.nextLine();
-        System.out.println("Enter password:");
+        System.out.print("Enter password: ");
         String password = scanner.nextLine();
 
         try {
             client.register(username, password);
-            System.out.println("Registration successful");
+            System.out.println(GREEN + "Registration successful" + RESET);
         } catch (Exception e) {
-            System.out.println("Registration failed - " + e.getMessage());
+            System.out.println(RED + "Registration failed - " + e.getMessage() + RESET);
         }
     }
 
     private static boolean handleLogin(Client client) throws Exception {
-        System.out.println("Enter username:");
+        System.out.println(BLUE + "\n--- Login ---" + RESET);
+        System.out.print("Enter username: ");
         String username = scanner.nextLine();
-        System.out.println("Enter password:");
+        System.out.print("Enter password: ");
         String password = scanner.nextLine();
 
         boolean success = client.authenticate(username, password);
+        if (success) {
+            System.out.println(GREEN + "Login successful" + RESET);
+        }
         return success;
     }
 
     private static void handleOperations(Client client) throws Exception {
         while (true) {
-            System.out.println("\n1. Put");
+            System.out.println(BLUE + "\n--- Operations Menu ---" + RESET);
+            System.out.println("1. Put");
             System.out.println("2. Get");
             System.out.println("3. MultiPut");
             System.out.println("4. MultiGet");
             System.out.println("5. GetWhen");
             System.out.println("6. Logout");
+            System.out.print("Select an option: ");
+            String choice = scanner.nextLine();
 
-            int choice = Integer.parseInt(scanner.nextLine());
-
-            if (choice == 1) {
-                System.out.println("Enter key:");
-                String key = scanner.nextLine();
-                System.out.println("Enter value:");
-                String value = scanner.nextLine();
-                client.put(key, value.getBytes());
-                System.out.println("Put successful");
-            } else if (choice == 2) {
-                System.out.println("Enter key:");
-                String key = scanner.nextLine();
-                byte[] value = client.get(key);
-                if (value != null) {
-                    System.out.println("Value: " + new String(value));
-                } else {
-                    System.out.println("Value: null");
-                }
-            } else if (choice == 3) {
-                Map<String, byte[]> pairs = new HashMap<>();
-                System.out.println("Enter number of pairs:");
-                int n = Integer.parseInt(scanner.nextLine());
-                for (int i = 0; i < n; i++) {
-                    System.out.println("Enter key " + (i + 1) + ":");
-                    String key = scanner.nextLine();
-                    System.out.println("Enter value " + (i + 1) + ":");
-                    String value = scanner.nextLine();
-                    pairs.put(key, value.getBytes());
-                }
-                client.multiPut(pairs);
-                System.out.println("MultiPut successful");
-            } else if (choice == 4) {
-                Set<String> keys = new HashSet<>();
-                System.out.println("Enter number of keys:");
-                int n = Integer.parseInt(scanner.nextLine());
-                for (int i = 0; i < n; i++) {
-                    System.out.println("Enter key " + (i + 1) + ":");
-                    keys.add(scanner.nextLine());
-                }
-                Map<String, byte[]> values = client.multiGet(keys);
-                System.out.println("Values:");
-                for (Map.Entry<String, byte[]> entry : values.entrySet()) {
-                    if (entry.getValue() != null) {
-                        System.out.println(entry.getKey() + ": " + new String(entry.getValue()));
-                    } else {
-                        System.out.println(entry.getKey() + ": null");
-                    }
-                }
-            } else if (choice == 5) {
-                System.out.println("Enter key:");
-                String key = scanner.nextLine();
-                System.out.println("Enter condition key:");
-                String keyCond = scanner.nextLine();
-                System.out.println("Enter condition value:");
-                String valueCond = scanner.nextLine();
-                client.getWhen(key, keyCond, valueCond.getBytes(), new Client.AsyncCallback() {
-                    @Override
-                    public void onSuccess(byte[] result) {
-                        if (result != null) {
-                            System.out.println("GetWhen successful. Value: " + new String(result));
-                        } else {
-                            System.out.println("GetWhen successful. Value: null");
-                        }
-                    }
-
-                    @Override
-                    public void onFailure() {
-                        System.out.println("GetWhen failed.");
-                    }
-
-                    @Override
-                    public void onError(Exception e) {
-                        e.printStackTrace();
-                    }
-                });
-                System.out.println("GetWhen operation started in background.");
-            } else if (choice == 6) {
-                client.logout();
-                System.out.println("Logout successful");
-                break;
-            } else {
-                System.out.println("Invalid choice. Please try again.");
+            switch (choice) {
+                case "1":
+                    handlePut(client);
+                    break;
+                case "2":
+                    handleGet(client);
+                    break;
+                case "3":
+                    handleMultiPut(client);
+                    break;
+                case "4":
+                    handleMultiGet(client);
+                    break;
+                case "5":
+                    handleGetWhen(client);
+                    break;
+                case "6":
+                    client.logout();
+                    System.out.println(GREEN + "Logged out successfully" + RESET);
+                    return;
+                default:
+                    System.out.println(RED + "Invalid option. Please try again." + RESET);
             }
         }
+    }
+
+    private static void handlePut(Client client) throws Exception {
+        System.out.println(BLUE + "\n--- Put ---" + RESET);
+        System.out.print("Enter key: ");
+        String key = scanner.nextLine();
+        System.out.print("Enter value: ");
+        String value = scanner.nextLine();
+
+        client.put(key, value.getBytes());
+        System.out.println(GREEN + "Put operation successful" + RESET);
+    }
+
+    private static void handleGet(Client client) throws Exception {
+        System.out.println(BLUE + "\n--- Get ---" + RESET);
+        System.out.print("Enter key: ");
+        String key = scanner.nextLine();
+
+        byte[] value = client.get(key);
+        System.out.println(GREEN + "Get operation successful. Value: " + new String(value) + RESET);
+    }
+
+    private static void handleMultiPut(Client client) throws Exception {
+        System.out.println(BLUE + "\n--- MultiPut ---" + RESET);
+        Map<String, byte[]> pairs = new HashMap<>();
+        while (true) {
+            System.out.print("Enter key (or 'done' to finish): ");
+            String key = scanner.nextLine();
+            if (key.equalsIgnoreCase("done")) {
+                break;
+            }
+            System.out.print("Enter value: ");
+            String value = scanner.nextLine();
+            pairs.put(key, value.getBytes());
+        }
+
+        client.multiPut(pairs);
+        System.out.println(GREEN + "MultiPut operation successful" + RESET);
+    }
+
+    private static void handleMultiGet(Client client) throws Exception {
+        System.out.println(BLUE + "\n--- MultiGet ---" + RESET);
+        Set<String> keys = new HashSet<>();
+        while (true) {
+            System.out.print("Enter key (or 'done' to finish): ");
+            String key = scanner.nextLine();
+            if (key.equalsIgnoreCase("done")) {
+                break;
+            }
+            keys.add(key);
+        }
+
+        Map<String, byte[]> results = client.multiGet(keys);
+        System.out.println(GREEN + "MultiGet operation successful. Results:" + RESET);
+        for (Map.Entry<String, byte[]> entry : results.entrySet()) {
+            System.out.println("Key: " + entry.getKey() + ", Value: " + new String(entry.getValue()));
+        }
+    }
+
+    private static void handleGetWhen(Client client) throws Exception {
+        System.out.println(BLUE + "\n--- GetWhen ---" + RESET);
+        System.out.print("Enter key: ");
+        String key = scanner.nextLine();
+        System.out.print("Enter condition key: ");
+        String keyCond = scanner.nextLine();
+        System.out.print("Enter condition value: ");
+        String valueCond = scanner.nextLine();
+
+        client.getWhen(key, keyCond, valueCond.getBytes(), new Client.AsyncCallback() {
+            @Override
+            public void onSuccess(byte[] result) {
+                System.out.println(GREEN + "GetWhen operation successful. Value: " + new String(result) + RESET);
+            }
+
+            @Override
+            public void onFailure() {
+                System.out.println(RED + "GetWhen operation failed." + RESET);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                System.out.println(RED + "GetWhen operation error: " + e.getMessage() + RESET);
+            }
+        });
     }
 }

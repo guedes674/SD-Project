@@ -40,4 +40,17 @@ public class Frame {
         }
         return new Frame(tag, keyValuePairs);
     }
+
+    // toString method for debugging, transform map of byte[] to map of String
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Frame{tag=").append(tag).append(", keyValuePairs={");
+        for (Map.Entry<String, byte[]> entry : keyValuePairs.entrySet()) {
+            sb.append(entry.getKey()).append("=");
+            sb.append(new String(entry.getValue())).append(", ");
+        }
+        sb.append("}}");
+        return sb.toString();
+    }
 }

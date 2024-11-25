@@ -78,8 +78,11 @@ public class Client implements AutoCloseable {
                 Map<String, byte[]> request = new HashMap<>();
                 request.put(key, new byte[0]);
                 request.put(keyCond, valueCond);
+
                 demultiplexer.send(new Frame(Request.GET_WHEN, request));
+
                 Frame responseFrame = demultiplexer.receive(Request.GET_WHEN);
+
                 callback.onSuccess(responseFrame.keyValuePairs.get(key));
             } catch (IOException | InterruptedException e) {
                 callback.onError(e);
@@ -92,7 +95,6 @@ public class Client implements AutoCloseable {
         credentials.put(username, password.getBytes());
         demultiplexer.send(new Frame(Request.REGISTER, credentials));
         Frame responseFrame = demultiplexer.receive(Request.REGISTER);
-        System.out.println(responseFrame.keyValuePairs);
 
         if (responseFrame.keyValuePairs.containsKey("ERROR")) {
             throw new IOException(new String(responseFrame.keyValuePairs.get("ERROR")));
@@ -106,7 +108,6 @@ public class Client implements AutoCloseable {
         credentials.put(username, password.getBytes());
         demultiplexer.send(new Frame(Request.AUTH, credentials));
         Frame responseFrame = demultiplexer.receive(Request.AUTH);
-        System.out.println(responseFrame.keyValuePairs);
 
         while (responseFrame.keyValuePairs.containsKey("WAIT")) {
             System.out.println(new String(responseFrame.keyValuePairs.get("WAIT")));
@@ -140,7 +141,9 @@ public class Client implements AutoCloseable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() throws IOException, InterruptedException {
+        logout();
         demultiplexer.close();
+
     }
 }
