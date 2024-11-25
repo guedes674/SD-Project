@@ -85,39 +85,39 @@ public class Server {
         liuLock.lock();
         try {
             System.out.println("Server: Authenticating user " + username);
-            System.out.println("Logging in users: " + loggedInUsers);
             if (credentialsMap.containsKey(username)) {
                 String storedPassword = credentialsMap.get(username);
                 if (loggedInUsers.contains(username)) {
                     System.out.println("Server: User already logged in");
                     c.send(new Frame(Request.AUTH,
-                            Collections.singletonMap("ERROR", "Erro - sessão já iniciada.".getBytes())));
+                            Collections.singletonMap("ERROR", "Error - user already logged in.".getBytes())));
                 } else if (storedPassword.equals(password)) {
                     while (currentSessions >= MAX_SESSIONS) {
                         System.out.println("Server: Maximum sessions reached. Adding to waiting queue.");
                         waitingQueue.add(c);
                         c.send(new Frame(Request.AUTH,
                                 Collections.singletonMap("WAIT",
-                                        "Aguarde, por favor. Sessões máximas atingidas.".getBytes())));
+                                        "Waiting for a session to become available...".getBytes())));
                         loginCondition.await();
                     }
                     System.out.println("Server: Authentication successful");
                     c.send(new Frame(Request.AUTH,
-                            Collections.singletonMap(username, "Sessão iniciada com sucesso!".getBytes())));
+                            Collections.singletonMap(username, "Login made successfully.".getBytes())));
                     loggedInUsers.add(username);
                     currentSessions++;
                     System.out.println("Current sessions: " + currentSessions);
                 } else {
                     c.send(new Frame(Request.AUTH,
-                            Collections.singletonMap("ERROR", "Erro - palavra-passe errada.".getBytes())));
+                            Collections.singletonMap("ERROR", "Error - Wrong password.".getBytes())));
                 }
             } else {
                 c.send(new Frame(Request.AUTH,
-                        Collections.singletonMap("ERROR", "Erro - conta não existe.".getBytes())));
+                        Collections.singletonMap("ERROR", "Error - User not found.".getBytes())));
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
+            System.out.println("Users logged in: " + loggedInUsers);
             liuLock.unlock();
         }
     }
@@ -132,13 +132,12 @@ public class Server {
             if (credentialsMap.containsKey(username)) {
                 System.out.println("Server: Account already exists");
                 c.send(new Frame(Request.REGISTER, Collections.singletonMap("ERROR",
-                        "Erro - username já pertence a uma conta.".getBytes())));
+                        "Error - Account already exists.".getBytes())));
             } else {
                 System.out.println("Server: Creating new account");
                 credentialsMap.put(username, password);
                 c.send(new Frame(Request.REGISTER,
-                        Collections.singletonMap(username, "Registo efetuado com sucesso!".getBytes())));
-                System.out.println("Current sessions: " + currentSessions);
+                        Collections.singletonMap(username, "Successful registration!".getBytes())));
             }
         } finally {
             liuLock.unlock();
@@ -182,7 +181,6 @@ public class Server {
         Map<String, byte[]> request = frame.keyValuePairs;
         Iterator<String> keysIterator = request.keySet().iterator();
 
-        // Get key and keyCond remembering the order they were inserted
         String keyCond = keysIterator.next();
         String key = keysIterator.next();
         byte[] valueCond = request.get(keyCond);
@@ -219,13 +217,14 @@ public class Server {
         try {
             loggedInUsers.remove(username);
             currentSessions--;
-            System.out.println("Current sessions: " + currentSessions);
+
             c.send(new Frame(Request.LOGOUT, Collections.singletonMap(username, new byte[] { 1 })));
             if (!waitingQueue.isEmpty()) {
                 Connection nextClient = waitingQueue.poll();
                 loginCondition.signalAll();
             }
         } finally {
+            System.out.println("Current sessions: " + currentSessions);
             liuLock.unlock();
         }
     }

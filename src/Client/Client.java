@@ -26,7 +26,7 @@ public class Client implements AutoCloseable {
             pair.put(key, value);
             Frame frame = new Frame(Request.PUT, pair);
             demultiplexer.send(frame);
-            demultiplexer.receive(Request.PUT); // Read response for the entire operation
+            demultiplexer.receive(Request.PUT);
         } finally {
             lock.unlock();
         }
@@ -50,7 +50,7 @@ public class Client implements AutoCloseable {
         try {
             Frame frame = new Frame(Request.PUT, pairs);
             demultiplexer.send(frame);
-            demultiplexer.receive(Request.PUT); // Read response for the entire operation
+            demultiplexer.receive(Request.PUT);
         } finally {
             lock.unlock();
         }
