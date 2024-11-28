@@ -251,35 +251,38 @@ public class Server {
         Map<String, byte[]> request = frame.keyValuePairs;
         Iterator<String> keysIterator = request.keySet().iterator();
 
-        String keyCond = keysIterator.next();
         String key = keysIterator.next();
+        String keyCond = keysIterator.next();
         byte[] valueCond = request.get(keyCond);
+
+        System.out.println("Key: " + key);
+        System.out.println("KeyCond: " + keyCond);
 
         System.out.println("Frame: " + frame.toString());
 
-        new Thread(() -> {
-            byte[] value;
-            storeLock.lock();
-            try {
-                // Wait until the condition key has the specified value
-                while (!Arrays.equals(store.get(keyCond), valueCond)) {
-                    storeCondition.await();
-                }
-                // Retrieve the value for the requested key
-                value = store.get(key);
-            } catch (InterruptedException e) {
-                value = null;
-            } finally {
-                storeLock.unlock();
+        byte[] value;
+        storeLock.lock();
+        try {
+            // Wait until the condition key has the specified value
+            while (!Arrays.equals(store.get(keyCond), valueCond)) {
+                System.out.println(keyCond + " != " + new String(valueCond));
+                System.out.println("Server: Waiting for condition to be met.");
+                storeCondition.await();
             }
-            try {
-                // Send the retrieved value back to the client
-                c.send(new Frame(Request.GET_WHEN,
-                        Collections.singletonMap(key, value != null ? value : "null".getBytes())));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }).start();
+            // Retrieve the value for the requested key
+            value = store.get(key);
+        } catch (InterruptedException e) {
+            value = null;
+        } finally {
+            storeLock.unlock();
+        }
+        try {
+            // Send the retrieved value back to the client
+            c.send(new Frame(Request.GET_WHEN,
+                    Collections.singletonMap(key, value != null ? value : "null".getBytes())));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
