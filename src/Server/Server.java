@@ -24,7 +24,7 @@ public class Server {
     private static final Map<String, byte[]> store = new HashMap<>();
     private static final Set<String> loggedInUsers = new HashSet<>();
     private static final Queue<Connection> waitingQueue = new LinkedList<>();
-    private static final int MAX_SESSIONS = 3;
+    private static final int MAX_SESSIONS = 10;
     private static int currentSessions = 0;
 
     /**
@@ -90,7 +90,7 @@ public class Server {
                     handleLogout(frame, c);
                     break;
                 default:
-                    System.out.println("Unknown request type: " + frame.tag);
+
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -197,7 +197,6 @@ public class Server {
      * @throws IOException If an I/O error occurs
      */
     private static void handleMultiPut(Frame frame, Connection c) throws IOException {
-        System.out.println("MultiPut request.");
 
         storeLock.lock();
         try {
@@ -222,7 +221,6 @@ public class Server {
      * @throws IOException If an I/O error occurs
      */
     private static void handleMultiGet(Frame frame, Connection c) throws IOException {
-        System.out.println("MultiGet request.");
         Map<String, byte[]> results = new HashMap<>();
 
         storeLock.lock();
@@ -247,7 +245,6 @@ public class Server {
      * @throws IOException If an I/O error occurs
      */
     private static void handleGetWhen(Frame frame, Connection c) throws IOException {
-        System.out.println("GetWhen request.");
         Map<String, byte[]> request = frame.keyValuePairs;
         Iterator<String> keysIterator = request.keySet().iterator();
 
@@ -255,18 +252,11 @@ public class Server {
         String keyCond = keysIterator.next();
         byte[] valueCond = request.get(keyCond);
 
-        System.out.println("Key: " + key);
-        System.out.println("KeyCond: " + keyCond);
-
-        System.out.println("Frame: " + frame.toString());
-
         byte[] value;
         storeLock.lock();
         try {
             // Wait until the condition key has the specified value
             while (!Arrays.equals(store.get(keyCond), valueCond)) {
-                System.out.println(keyCond + " != " + new String(valueCond));
-                System.out.println("Server: Waiting for condition to be met.");
                 storeCondition.await();
             }
             // Retrieve the value for the requested key
