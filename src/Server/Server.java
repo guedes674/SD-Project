@@ -24,7 +24,7 @@ public class Server {
     private static final Map<String, byte[]> store = new HashMap<>();
     private static final Set<String> loggedInUsers = new HashSet<>();
     private static final Queue<Connection> waitingQueue = new LinkedList<>();
-    private static final int MAX_SESSIONS = 3000;
+    private static final int MAX_SESSIONS = 10000;
     private static int currentSessions = 0;
 
     /**

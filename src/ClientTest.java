@@ -13,12 +13,13 @@ public class ClientTest {
     public static void main(String[] args) {
         String host = "localhost";
         int port = 8080;
-        int numOperations = 10000; // Number of operations to test with
+        int numOperations = 100; // Number of operations to test with
         int hotKeysPercentage = 10; // Percentage of hot keys
         int valueSize = 1000; // Fixed size of the value byte array
+        int numClients = 2000; // Number of clients to test with
 
         runSingleClientTest(host, port, numOperations, hotKeysPercentage, valueSize);
-        runMultipleClientsTest(host, port, 1, hotKeysPercentage, valueSize, 2048);
+        runMultipleClientsTest(host, port, 1, hotKeysPercentage, valueSize, numClients);
     }
 
     private static void runSingleClientTest(String host, int port, int numOperations, int hotKeysPercentage,
@@ -73,7 +74,9 @@ public class ClientTest {
             long duration = endTime - startTime;
             client.logout();
             System.out.println(
-                    "Total execution time for " + numOperations + " operations: " + duration + " milliseconds");
+                    "Total execution time for " + numOperations + " operations: " + duration
+                            + " milliseconds for single client with hot keys percentage: " + hotKeysPercentage
+                            + "% and value size: " + valueSize + " bytes");
 
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
@@ -143,21 +146,20 @@ public class ClientTest {
                 System.err.println("Executor did not terminate in the specified time.");
                 executor.shutdownNow();
             }
-            System.out.println("All clients completed");
+            // System.out.println("All clients completed");
 
             long endTime = System.currentTimeMillis();
             long duration = endTime - startTime;
-            System.out.println("Total execution time for multiple clients: " + duration + " milliseconds");
+            System.out.println("Total execution time for multiple clients: " + duration + " milliseconds for "
+                    + numClients + " clients with hot keys percentage: " + hotKeysPercentage + "% and value size: "
+                    + valueSize + " bytes");
 
         } catch (InterruptedException e) {
             e.printStackTrace();
             executor.shutdownNow();
         } finally {
-            System.out.println("Shutting down the executor");
             executor.shutdownNow();
         }
 
-        // Force the program to exit
-        System.exit(0);
     }
 }
