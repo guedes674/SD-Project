@@ -24,7 +24,7 @@ public class Server {
     private static final Map<String, byte[]> store = new HashMap<>();
     private static final Set<String> loggedInUsers = new HashSet<>();
     private static final Queue<Connection> waitingQueue = new LinkedList<>();
-    private static final int MAX_SESSIONS = 10;
+    private static final int MAX_SESSIONS = 3000;
     private static int currentSessions = 0;
 
     /**
@@ -40,7 +40,8 @@ public class Server {
 
         while (true) {
             Socket clientSocket = serverSocket.accept();
-            System.out.println("Client connected from " + clientSocket.getInetAddress().getHostAddress());
+            // System.out.println("Client connected from " +
+            // clientSocket.getInetAddress().getHostAddress());
             Connection c = new Connection(clientSocket);
             new Thread(() -> handleClient(c)).start();
         }
@@ -105,7 +106,7 @@ public class Server {
      * @throws IOException If an I/O error occurs
      */
     private static void handleAuth(Frame frame, Connection c) throws IOException {
-        System.out.println("Server: User authentication attempt.");
+        // System.out.println("Server: User authentication attempt.");
         String username = frame.keyValuePairs.keySet().iterator().next();
         String password = new String(frame.keyValuePairs.get(username));
 
@@ -116,7 +117,7 @@ public class Server {
             if (credentialsMap.containsKey(username)) {
                 String storedPassword = credentialsMap.get(username);
                 if (loggedInUsers.contains(username)) {
-                    System.out.println("Server: User already logged in");
+                    // System.out.println("Server: User already logged in");
                     c.send(new Frame(Request.AUTH,
                             Collections.singletonMap("ERROR", "Error - user already logged in.".getBytes())));
                 }
@@ -125,7 +126,8 @@ public class Server {
 
                     // Check if the maximum number of sessions has been reached
                     while (currentSessions >= MAX_SESSIONS) {
-                        System.out.println("Server: Maximum sessions reached. Adding to waiting queue.");
+                        // System.out.println("Server: Maximum sessions reached. Adding to waiting
+                        // queue.");
                         // Add the client to the waiting queue and wait for a signal
                         waitingQueue.add(c);
                         c.send(new Frame(Request.AUTH,
@@ -134,12 +136,12 @@ public class Server {
                         loginCondition.await();
                     }
 
-                    System.out.println("Server: Authentication successful");
+                    // System.out.println("Server: Authentication successful");
                     c.send(new Frame(Request.AUTH,
                             Collections.singletonMap(username, "Login made successfully.".getBytes())));
                     loggedInUsers.add(username);
                     currentSessions++;
-                    System.out.println("Current sessions: " + currentSessions);
+                    // System.out.println("Current sessions: " + currentSessions);
                 } else {
                     c.send(new Frame(Request.AUTH,
                             Collections.singletonMap("ERROR", "Error - Wrong password.".getBytes())));
@@ -151,7 +153,7 @@ public class Server {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
-            System.out.println("Users logged in: " + loggedInUsers);
+            // System.out.println("Users logged in: " + loggedInUsers);
             liuLock.unlock();
         }
     }
@@ -164,7 +166,7 @@ public class Server {
      * @throws IOException If an I/O error occurs
      */
     private static void handleRegister(Frame frame, Connection c) throws IOException {
-        System.out.println("Server: User registration attempt.");
+        // System.out.println("Server: User registration attempt.");
         String username = frame.keyValuePairs.keySet().iterator().next();
         String password = new String(frame.keyValuePairs.get(username));
 
@@ -172,14 +174,14 @@ public class Server {
         try {
             // Check if the account already exists
             if (credentialsMap.containsKey(username)) {
-                System.out.println("Server: Account already exists");
+                // System.out.println("Server: Account already exists");
                 c.send(new Frame(Request.REGISTER, Collections.singletonMap("ERROR",
                         "Error - Account already exists.".getBytes())));
 
             }
             // Create a new account
             else {
-                System.out.println("Server: Creating new account");
+                // System.out.println("Server: Creating new account");
                 credentialsMap.put(username, password);
                 c.send(new Frame(Request.REGISTER,
                         Collections.singletonMap(username, "Successful registration!".getBytes())));
@@ -283,7 +285,7 @@ public class Server {
      * @throws IOException If an I/O error occurs
      */
     private static void handleLogout(Frame frame, Connection c) throws IOException {
-        System.out.println("Server: User logout attempt.");
+        // System.out.println("Server: User logout attempt.");
         String username = frame.keyValuePairs.keySet().iterator().next();
 
         liuLock.lock();
@@ -302,7 +304,7 @@ public class Server {
                 loginCondition.signalAll();
             }
         } finally {
-            System.out.println("Current sessions: " + currentSessions);
+            // System.out.println("Current sessions: " + currentSessions);
             liuLock.unlock();
         }
     }
