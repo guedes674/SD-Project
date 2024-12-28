@@ -248,10 +248,16 @@ public class Server {
      */
     private static void handleGetWhen(Frame frame, Connection c) throws IOException {
         Map<String, byte[]> request = frame.keyValuePairs;
-        Iterator<String> keysIterator = request.keySet().iterator();
-
-        String key = keysIterator.next();
-        String keyCond = keysIterator.next();
+        String key;
+        String keyCond;
+        if(request.keySet().size() == 1) {
+            key = request.keySet().iterator().next();
+            keyCond = key;
+        }else{
+            Iterator<String> keysIterator = request.keySet().iterator();
+            key = keysIterator.next();
+            keyCond = keysIterator.next();
+        }
         byte[] valueCond = request.get(keyCond);
 
         byte[] value;
